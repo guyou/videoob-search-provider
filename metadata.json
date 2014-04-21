@@ -1,0 +1,10 @@
+{
+  "description": "Integrates Videoob-Search into the Gnome-Shell desktop.\r\nDepends on videoob beeing installed.", 
+  "name": "Videoob Search", 
+  "shell-version": [
+    "3.8.4"
+  ], 
+  "url": "https://github.com/cewee/tracker-search", 
+  "uuid": "videoob-search@weboob.org", 
+  "version": 8
+}
