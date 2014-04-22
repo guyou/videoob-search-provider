@@ -14,6 +14,7 @@ const Search        = imports.ui.search;
 const SearchDisplay = imports.ui.searchDisplay;
 const Gio           = imports.gi.Gio;
 const GLib          = imports.gi.GLib;
+const Lang          = imports.lang;
 const Shell         = imports.gi.Shell;
 const IconGrid      = imports.ui.iconGrid;
 const Util          = imports.misc.util;
@@ -27,54 +28,7 @@ const MAX_RESULTS = 40;
 const MAX_ROWS = 3; // this is currently ignored, but bug report is filed : https://bugzilla.gnome.org/show_bug.cgi?id=687474
 const ICON_SIZE = 25;
 
-
-function VideoobResult(result) {
-    this._init(result);
-}
-
-// Overwriting layout to display search results.
-VideoobResult.prototype = {
-    _init: function(resultMeta) {
-        this.actor = new St.Bin({ style_class: 'result',
-          reactive: true,
-          can_focus: true,
-          track_hover: true,
-          accessible_role: Atk.Role.PUSH_BUTTON});
-        var MainBox = new St.BoxLayout( { style_class: 'result-content', vertical: true });
-        this.actor.set_child(MainBox);
-        let title = new St.Label({ text: resultMeta.title, style_class: 'title' });
-        MainBox.add(title, { x_fill: false, x_align: St.Align.START });
-        let IconInfoFrame = new St.BoxLayout({ style_class: 'icon-info-frame', vertical: false });
-        MainBox.add(IconInfoFrame, { x_fill: false, x_align: St.Align.START, y_align: St.Align.MIDDLE });
-
-        if (resultMeta.thumbnail != null) {
-          let IconBox = new St.BoxLayout({ vertical: false });
-          let textureCache = St.TextureCache.get_default();
-          var icon = textureCache.load_uri_async(resultMeta.thumbnail, ICON_SIZE, ICON_SIZE);
-          IconBox.add(icon, { x_fill: false, y_fill: false, x_align: St.Align.START, y_align: St.Align.MIDDLE });
-          IconInfoFrame.add(IconBox, { x_fill: false, x_align: St.Align.START });
-        }
-
-        let SideBox = new St.BoxLayout({ style_class: 'side-box', vertical: true });
-        IconInfoFrame.add(SideBox, { x_fill: false, x_align: St.Align.START });
-        let author = new St.Label({ text: resultMeta.author, style_class: 'result-detail' });
-        SideBox.add(author, { x_fill: false, x_align: St.Align.START });
-        let description = new St.Label({ text: resultMeta.description, style_class: 'result-detail' });
-        SideBox.add(description, { x_fill: false, x_align: St.Align.START });
-        let duration = new St.Label({ text: resultMeta.duration, style_class: 'result-detail' });
-        SideBox.add(duration, { x_fill: false, x_align: St.Align.START });
-/*
-        let prettyPath = new St.Label({ text: resultMeta.url, style_class: 'result-path' });
-        MainBox.add(prettyPath, { x_fill: false, x_align: St.Align.START });
-*/
-    }
-};
-
 var videoobSearchProvider = null;
-
-function VideoobSearchProvider() {
-    this._init();
-}
 
 /*
  * "id": "3qVJLOK_zao@youtube"
@@ -93,16 +47,13 @@ function VideoobSearchProvider() {
  * "duration": "0:00:45"
  */
 
-VideoobSearchProvider.prototype = {
-    //__proto__ : Search.SearchProvider.prototype,
+const VideoobSearchProvider = new Lang.Class({
+    Name: 'VideoobSearchProvider',
+    Extends: Search.SearchProvider,
 
     _init : function() {
-        var grid =  new IconGrid.IconGrid({
-           rowLimit: MAX_ROWS,
-           //columnLimit: 8,
-            xAlign: St.Align.MIDDLE });
-        var actor = new SearchDisplay.GridSearchResults(this, grid);
-        this._grid = grid;
+        this.appInfo = Gio.DesktopAppInfo.new("qvideoob.desktop");
+        var actor = new SearchDisplay.ListSearchResults(this);
         //Search.SearchProvider.prototype._init.call(this, "Videos from Videoob");
     },
 
@@ -116,17 +67,26 @@ VideoobSearchProvider.prototype = {
     },
 
     getResultMeta : function(resultId) {
-        let thumbnail = null;
-        if (resultId.thumbnail != null)
-            thumbnail = resultId.thumbnail.url;
+        let description = "";
+        if (resultId.description)
+            description += resultId.description;
+        if (resultId.duration)
+            description += " (" + resultId.duration +")";
         return {
-          'id': resultId,
-          'title': resultId.title,
-          'author': resultId.author,
-          'description': resultId.description,
-          'duration': resultId.duration,
-          'thumbnail': thumbnail
-          };
+            'id': resultId,
+            'name': resultId.title,
+            'description': description,
+            'createIcon': function(size) {
+                let thumbnail = null;
+                if (resultId.thumbnail != null) {
+                    thumbnail = resultId.thumbnail.url;
+                    let textureCache = St.TextureCache.get_default();
+                    var icon = textureCache.load_uri_async(thumbnail, ICON_SIZE, ICON_SIZE);
+                    return icon;
+                } else
+                    return null;
+            }
+        };
       },
 
     activateResult : function(result) {
@@ -159,14 +119,7 @@ VideoobSearchProvider.prototype = {
         return this.getInitialResultSet(terms);
     },    
     
-    // Display overwrites
-    createResultActor: function(resultMeta, terms) {
-        let result = new VideoobResult(resultMeta);
-        return result.actor;
-    },
-
-  
-};
+});
 
 function init(meta) {
 }
