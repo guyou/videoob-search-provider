@@ -7,4 +7,4 @@ SUBDIRS = src
 
 # Remove doc directory on uninstall
 uninstall-local:
-
+EXTRA_DIST = README.md
