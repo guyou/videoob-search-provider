@@ -3,8 +3,6 @@ dnl Created by Anjuta application wizard.
 
 AC_INIT(videoob_search, 0.1)
 
-AC_CONFIG_HEADERS([config.h])
-
 AC_PREFIX_DEFAULT(~/.local/share/gnome-shell/extensions)
 
 AM_INIT_AUTOMAKE([1.11 foreign])
