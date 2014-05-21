@@ -48,91 +48,117 @@ var videoobSearchProvider = null;
  */
 
 const VideoobSearchProvider = new Lang.Class({
-    Name: 'VideoobSearchProvider',
-    Extends: Search.SearchProvider,
+	Name: 'VideoobSearchProvider',
+	Extends: Search.SearchProvider,
 
-    _init : function() {
-        this.appInfo = Gio.DesktopAppInfo.new("qvideoob.desktop");
-        var actor = new SearchDisplay.ListSearchResults(this);
-        //Search.SearchProvider.prototype._init.call(this, "Videos from Videoob");
-    },
+	_init : function() {
+		this.parent(_("WEBOOB"));
+		this.appInfo = Gio.DesktopAppInfo.new("qvideoob.desktop");
+		var actor = new SearchDisplay.ListSearchResults(this);
+		//Search.SearchProvider.prototype._init.call(this, "Videos from Videoob");
 
-    getResultMetas: function(resultIds,callback) {
-        let metas = [];
-        for (let i = 0; i < resultIds.length; i++) {
-            metas.push(this.getResultMeta(resultIds[i]));
-        }
-        callback(metas);
-//        return metas;
-    },
+		this._id = 0;
+	},
 
-    getResultMeta : function(resultId) {
-        let description = "";
-        if (resultId.description)
-            description += resultId.description;
-        if (resultId.duration)
-            description += " (" + resultId.duration +")";
-        return {
-            'id': resultId,
-            'name': resultId.title,
-            'description': description,
-            'createIcon': function(size) {
-                let thumbnail = null;
-                if (resultId.thumbnail != null) {
-                    thumbnail = resultId.thumbnail.url;
-                    let textureCache = St.TextureCache.get_default();
-                    var icon = textureCache.load_uri_async(thumbnail, ICON_SIZE, ICON_SIZE);
-                    return icon;
-                } else
-                    return null;
-            }
-        };
-      },
+	getResultMetas: function(resultIds,callback) {
+		let metas = [];
+		for (let i = 0; i < resultIds.length; i++) {
+			metas.push(this.getResultMeta(resultIds[i]));
+		}
+		callback(metas);
+		//        return metas;
+	},
 
-    activateResult : function(result) {
-        // Action executed when clicked on result
-        var id = result.id;
-        Util.spawn([DEFAULT_EXEC, "play", id]);
-    },
+	getResultMeta : function(resultId) {
+		let description = "";
+		if (resultId.description)
+			description += resultId.description;
+		if (resultId.duration)
+			description += " (" + resultId.duration +")";
+		return {
+			'id': resultId,
+			'name': resultId.title,
+			'description': description,
+			'createIcon': function(size) {
+				let thumbnail = null;
+				if (resultId.thumbnail != null) {
+					thumbnail = resultId.thumbnail.url;
+					let textureCache = St.TextureCache.get_default();
+					var icon = textureCache.load_uri_async(thumbnail, ICON_SIZE, ICON_SIZE);
+					return icon;
+				} else
+					return null;
+			}
+		};
+	},
 
-    getInitialResultSet : function(terms) {
-        // terms holds array of search items
-        // check if 1st search term is >2 letters else drop the request
-        if(terms[0].length < 3) {
-            return [];
-        }
+	activateResult : function(result) {
+		// Action executed when clicked on result
+		var id = result.id;
+		Util.spawn([DEFAULT_EXEC, "play", id]);
+	},
 
-        let r = GLib.spawn_command_line_sync(DEFAULT_EXEC+' -f json search '+terms);
-        // TODO test r[0]
-        let result = JSON.parse(r[1]);
-        //global.log(String.format("Found {length}", {length: result.length}));
-        global.log("Found " + result.length);
+	getInitialResultSet : function(terms) {
+		// terms holds array of search items
+		// check if 1st search term is >2 letters else drop the request
+		if(terms[0].length < 3) {
+			return;
+		}
+		this._id = this._id + 1;
+		let searchId = this._id;
+		let args = [DEFAULT_EXEC, '-f', 'json', 'search'].concat(terms);
+		global.log("Firing subprocess "+args);
+		let subp = new Gio.Subprocess({'argv': args, 'flags': Gio.SubprocessFlags.STDOUT_PIPE});
+		subp.init(null);
+		let is = subp.get_stdout_pipe();
+		let dataInputStream = new Gio.DataInputStream({ 'base-stream': is });
+		dataInputStream.read_line_async(GLib.PRIORITY_LOW, null, Lang.bind(this, function(source_object, res) {
+			try {
+				let [str, len] = source_object.read_line_finish(res);
+				if (str == null) {
+					return;
+				}
+				let result = JSON.parse(str);
+				//global.log(String.format("Found {length}", {length: result.length}));
+				global.log("Found " + result.length);
 
-        return this.searchSystem.pushResults(this, result );
-    },
+				if (this._id == searchId) {
+					this.searchSystem.pushResults(this, result );
+				}
+			} catch (e) {
+				return;
+			}
+			source_object.read_line_async(GLib.PRIORITY_LOW, null, Lang.bind(this, arguments.callee), null);
+		}), null);
+	},
 
-    getSubsearchResultSet : function(previousResults, terms) {
-        // check if 1st search term is >2 letters else drop the request
-        if(terms[0].length < 3) {  
-            return [];
-        }
-        return this.getInitialResultSet(terms);
-    },    
-    
+	getSubsearchResultSet : function(previousResults, terms) {
+		// check if 1st search term is >2 letters else drop the request
+		if(terms[0].length < 3) {  
+			return;
+		}
+		this.getInitialResultSet(terms);
+	},    
+
+	/* Cancel previous asynchronous search, called from tryCancelAsync(). */
+	_asyncCancelled: function() {
+		this._id = this._id + 1;
+	}
+
 });
 
 function init(meta) {
 }
 
 function enable() {
-    global.log("Videoob enabled");
-    videoobSearchProvider = new VideoobSearchProvider();
-    Main.overview.addSearchProvider(videoobSearchProvider);
+	global.log("Videoob enabled");
+	videoobSearchProvider = new VideoobSearchProvider();
+	Main.overview.addSearchProvider(videoobSearchProvider);
 }
 
 function disable() {
-    Main.overview.removeSearchProvider(videoobSearchProvider);
-    videoobSearchProvider = null;
-    global.log("Videoob disabled");
+	Main.overview.removeSearchProvider(videoobSearchProvider);
+	videoobSearchProvider = null;
+	global.log("Videoob disabled");
 }
 
