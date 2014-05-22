@@ -1,7 +1,7 @@
 dnl Process this file with autoconf to produce a configure script.
 dnl Created by Anjuta application wizard.
 
-AC_INIT(videoob_search, 0.1)
+AC_INIT(videoob_search, 0.2)
 
 AC_PREFIX_DEFAULT(~/.local/share/gnome-shell/extensions)
 
